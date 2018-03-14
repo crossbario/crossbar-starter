@@ -35,7 +35,7 @@ connection.onopen = function (session, details) {
    var componentType = "JavaScript/Browser";
 
    console.log("Component ID is ", componentId);
-   console.log("Component tpye is ", componentType);
+   console.log("Component type is ", componentType);
 
 
    // SUBSCRIBE to a topic and receive events
