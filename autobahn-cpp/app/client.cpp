@@ -11,8 +11,20 @@
 #include <autobahn/autobahn.hpp>
 
 
+typedef std::unordered_map<uint32_t, std::string> IntStringMap;
+
+
 void log (const std::string& msg) {
     std::cerr << msg << " [thread " << boost::this_thread::get_id() << "]" << std::endl;
+}
+
+void on_topic1(const autobahn::wamp_event& event)
+{
+    std::cerr << "received event: " << event.number_of_arguments() << std::endl;
+    IntStringMap m = event.argument<IntStringMap>(0);
+    for (const auto& n : m ) {
+        std::cout << n.first << ": " << n.second << std::endl;
+    }
 }
 
 
@@ -60,14 +72,43 @@ int main(int argc, char** argv)
 
                     log("joined realm");
 
-                    auto f4 = session->leave().then(boost::launch::deferred,
-                                                    [&](boost::future<std::string> reason) {
-                        log("session left");
+                    boost::future<void> subscribe_future = session->subscribe(
+                        "com.examples.subscriptions.topic1",
+                        &on_topic1
+                    ).then([&] (boost::future<autobahn::wamp_subscription> subscribed)
+                        {
+                            try {
+                                std::cerr << "subscribed to topic: " << subscribed.get().id() << std::endl;
+                            }
+                            catch (const std::exception& e) {
+                                std::cerr << e.what() << std::endl;
+                                io.stop();
+                                return;
+                            }
 
-                        io.stop();
+                            IntStringMap m;
+                            m[12] = "foo";
+                            m[32] = "bar";
+                            m[52] = "baz";
+                            std::tuple<IntStringMap> arguments(m);
+                            autobahn::wamp_publish_options wpo;
+                            wpo.set_exclude_me(false);
+                            session->publish("com.examples.subscriptions.topic1", arguments, wpo);
+                            std::cerr << "event published" << std::endl;
+
+                            // to exit cleanly, do something like this:
+                            if (false) {
+                                auto f5 = session->leave().then(
+                                    boost::launch::deferred,
+                                    [&](boost::future<std::string> reason) {
+                                        log("session left");
+                                        io.stop();
+                                    });
+                                f5.get();
+                            }
+                        }
+                    );
                     });
-                    f4.get();
-                });
                 f3.get();
             });
             f2.get();
